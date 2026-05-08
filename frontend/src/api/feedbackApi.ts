@@ -1,25 +1,26 @@
-import client from './client';
-
-export interface FeedbackPayload {
-  rating?: number;
-  transcript?: string;
-  sentiment?: 'positive' | 'neutral' | 'negative' | null;
-  serviceType?: string;
-  staffName?: string;
-  customerPhone?: string;
-}
+import { getJson, patchJson, postJson } from './client';
 
 export interface Feedback {
-  _id: string;
+  id: string;
   businessId: string;
+  customerPhone?: string;
   rating?: number;
   transcript?: string;
-  sentiment?: string | null;
+  sentiment?: 'positive' | 'neutral' | 'negative';
   serviceType?: string;
   staffName?: string;
-  customerPhone?: string;
+  audioUrl?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FeedbackPayload {
+  customerPhone?: string;
+  rating?: number;
+  transcript?: string;
+  serviceType?: string;
+  staffName?: string;
+  audioUrl?: string;
 }
 
 export interface FeedbackListResponse {
@@ -30,13 +31,15 @@ export interface FeedbackListResponse {
 }
 
 export async function createFeedback(payload: FeedbackPayload): Promise<Feedback> {
-  const { data } = await client.post<Feedback>('/api/feedback', payload);
-  return data;
+  const response = await postJson<{ data: Feedback }>('/api/feedback', payload);
+  return response.data;
 }
 
-export async function fetchFeedback(page = 1, limit = 20): Promise<FeedbackListResponse> {
-  const { data } = await client.get<FeedbackListResponse>('/api/feedback', {
-    params: { page, limit },
-  });
-  return data;
+export async function fetchFeedback(page = 1, limit = 10, rating?: number): Promise<FeedbackListResponse> {
+  return getJson<FeedbackListResponse>('/api/feedback', { page, limit, rating });
+}
+
+export async function updateFeedback(id: string, payload: Record<string, unknown>): Promise<Feedback> {
+  const response = await patchJson<{ data: Feedback }>(`/api/feedback/${id}`, payload);
+  return response.data;
 }

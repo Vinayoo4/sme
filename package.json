@@ -4,8 +4,11 @@
   "private": true,
   "scripts": {
     "build": "cd backend && npm run build && cd ../frontend && npm run build",
+    "test": "cd backend && npm test && cd ../frontend && npm test",
+    "lint": "cd frontend && npm run lint",
     "start": "node backend/dist/index.js",
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev"
+    "dev:frontend": "cd frontend && npm run dev",
+    "smoke": "./scripts/smoke-test.sh"
   }
 }
