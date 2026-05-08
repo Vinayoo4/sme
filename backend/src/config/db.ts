@@ -1,7 +1,9 @@
-import mongoose from 'mongoose';
-import { config } from './env';
+import { initializeDatabase } from '../storage/db';
 
 export async function connectDB(): Promise<void> {
-  await mongoose.connect(config.mongoUri);
-  console.log('MongoDB connected:', config.mongoUri);
+  await initializeDatabase();
+}
+
+export async function disconnectDB(): Promise<void> {
+  return Promise.resolve();
 }

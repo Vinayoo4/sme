@@ -5,10 +5,8 @@ import { createFeedbackHandler, listFeedbackHandler } from '../controllers/feedb
 
 const router = Router();
 
-router.use(authMiddleware as any);
-router.use(tenantMiddleware as any);
-
-router.post('/', createFeedbackHandler as any);
-router.get('/', listFeedbackHandler as any);
-
+router.use(authMiddleware);
+router.use(tenantMiddleware);
+router.post('/', createFeedbackHandler);
+router.get('/', listFeedbackHandler);
 export default router;

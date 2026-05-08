@@ -1,6 +1,5 @@
-import mongoose from 'mongoose';
-import { InventoryMovement } from '../models/InventoryMovement';
-import { Product } from '../models/Product';
+import { inventoryMovementRepository } from '../../storage/repositories/inventoryMovementRepository';
+import { productRepository } from '../../storage/repositories/productRepository';
 
 export interface RestockSuggestion {
   productId: string;
@@ -12,49 +11,36 @@ export interface RestockSuggestion {
   suggestedOrder: number;
 }
 
-export async function calculateMovingAverage(
-  productId: string,
-  daysWindow: number
-): Promise<number> {
-  const since = new Date();
-  since.setDate(since.getDate() - daysWindow);
-
-  const movements = await InventoryMovement.find({
-    productId: new mongoose.Types.ObjectId(productId),
-    type: 'sale',
-    date: { $gte: since },
-  }).lean();
-
-  const totalSold = movements.reduce((sum, m) => sum + m.quantity, 0);
-  return totalSold / daysWindow;
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
-export async function generateRestockSuggestions(
-  businessId: string,
-  horizonDays: number = 7,
-  safetyFactor: number = 1.5
-): Promise<RestockSuggestion[]> {
-  const products = await Product.find({ businessId }).lean();
-  const suggestions: RestockSuggestion[] = [];
+export async function generateRestockSuggestions(businessId: string, horizonDays = 7, lookbackDays = 30): Promise<RestockSuggestion[]> {
+  const products = await productRepository.listByBusinessId(businessId);
+  const since = new Date();
+  since.setDate(since.getDate() - lookbackDays);
 
-  for (const product of products) {
-    const avgDailySales = await calculateMovingAverage(String(product._id), 30);
-    const predictedDemand = avgDailySales * horizonDays;
-    const safetyStock = avgDailySales * safetyFactor;
-    const suggestedOrder = Math.max(0, predictedDemand + safetyStock - product.currentStock);
+  const sales = await inventoryMovementRepository.listSalesByBusinessIdSince(businessId, since.toISOString());
+  const soldByProduct = new Map<string, number>();
 
-    if (suggestedOrder > 0) {
-      suggestions.push({
-        productId: String(product._id),
-        name: product.name,
-        sku: product.sku,
-        currentStock: product.currentStock,
-        avgDailySales: Math.round(avgDailySales * 100) / 100,
-        predictedDemand: Math.round(predictedDemand * 100) / 100,
-        suggestedOrder: Math.round(suggestedOrder * 100) / 100,
-      });
-    }
+  for (const sale of sales) {
+    soldByProduct.set(sale.productId, (soldByProduct.get(sale.productId) ?? 0) + sale.quantity);
   }
 
-  return suggestions;
+  return products.map((product) => {
+    const avgDailySales = (soldByProduct.get(product.id) ?? 0) / lookbackDays;
+    const predictedDemand = avgDailySales * horizonDays;
+    const targetStock = Math.max(predictedDemand, product.reorderLevel ?? 0);
+    const suggestedOrder = Math.max(0, Math.ceil(targetStock - product.currentStock));
+
+    return {
+      productId: product.id,
+      name: product.name,
+      sku: product.sku,
+      currentStock: product.currentStock,
+      avgDailySales: round(avgDailySales),
+      predictedDemand: round(predictedDemand),
+      suggestedOrder,
+    };
+  });
 }

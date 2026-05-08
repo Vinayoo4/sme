@@ -1,23 +1,25 @@
-import client from './client';
-
-export interface ProductPayload {
-  name: string;
-  sku: string;
-  unit: string;
-  category?: string;
-}
+import { getJson, postJson } from './client';
 
 export interface Product {
-  _id: string;
+  id: string;
   businessId: string;
   name: string;
   sku: string;
-  unit: string;
   category?: string;
+  unit: string;
   currentStock: number;
   reorderLevel?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProductPayload {
+  name: string;
+  sku: string;
+  category?: string;
+  unit: string;
+  currentStock?: number;
+  reorderLevel?: number;
 }
 
 export interface MovementPayload {
@@ -38,29 +40,21 @@ export interface RestockSuggestion {
   suggestedOrder: number;
 }
 
-export interface RestockResponse {
-  data: RestockSuggestion[];
-}
-
 export async function createProduct(payload: ProductPayload): Promise<Product> {
-  const { data } = await client.post<Product>('/api/inventory/products', payload);
-  return data;
+  const response = await postJson<{ data: Product }>('/api/inventory/products', payload);
+  return response.data;
 }
 
-export async function fetchProducts(): Promise<{ data: Product[] }> {
-  const { data } = await client.get<{ data: Product[] }>('/api/inventory/products');
-  return data;
+export async function fetchProducts(): Promise<Product[]> {
+  const response = await getJson<{ data: Product[] }>('/api/inventory/products');
+  return response.data;
 }
 
-export async function recordMovement(payload: MovementPayload): Promise<unknown> {
-  const { data } = await client.post('/api/inventory/movements', payload);
-  return data;
+export async function recordMovement(payload: MovementPayload): Promise<void> {
+  await postJson<{ data: unknown }>('/api/inventory/movements', payload);
 }
 
-export async function fetchRestockSuggestions(params?: {
-  horizonDays?: number;
-  safetyFactor?: number;
-}): Promise<RestockResponse> {
-  const { data } = await client.get<RestockResponse>('/api/inventory/restock', { params });
-  return data;
+export async function fetchRestockSuggestions(): Promise<RestockSuggestion[]> {
+  const response = await getJson<{ data: RestockSuggestion[] }>('/api/inventory/restock');
+  return response.data;
 }

@@ -1,98 +1,118 @@
-import { Response, NextFunction } from 'express';
-import { AuthRequest } from '../../common/types';
+import { NextFunction, Response } from 'express';
 import { BadRequestError, NotFoundError } from '../../common/errors';
-import { Product } from '../models/Product';
-import { InventoryMovement } from '../models/InventoryMovement';
+import { AuthRequest, InventoryMovementType, Product } from '../../common/types';
+import { recordEvent } from '../../events/services/eventService';
+import { inventoryMovementRepository } from '../../storage/repositories/inventoryMovementRepository';
+import { productRepository } from '../../storage/repositories/productRepository';
 import { generateRestockSuggestions } from '../services/forecastingService';
 
-export async function createProduct(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
+function parseQuantity(value: unknown): number {
+  const quantity = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new BadRequestError('quantity must be greater than zero');
+  }
+  return quantity;
+}
+
+function parseMovementType(value: unknown): InventoryMovementType {
+  if (value === 'sale' || value === 'purchase' || value === 'adjustment') {
+    return value;
+  }
+  throw new BadRequestError('type must be sale, purchase, or adjustment');
+}
+
+export async function createProductHandler(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, sku, unit, category } = req.body as Record<string, string>;
-    if (!name || !sku || !unit) {
-      return next(new BadRequestError('name, sku, and unit are required'));
+    const { name, sku, category, unit, currentStock, reorderLevel } = req.body as Record<string, unknown>;
+    if (typeof name !== 'string' || typeof sku !== 'string' || typeof unit !== 'string') {
+      throw new BadRequestError('name, sku, and unit are required');
     }
-    const product = await Product.create({
-      businessId: req.businessId,
+
+    const existing = await productRepository.findBySku(req.businessId!, sku);
+    if (existing) {
+      throw new BadRequestError('sku must be unique within the business');
+    }
+
+    const product = await productRepository.create({
+      businessId: req.businessId!,
       name,
       sku,
+      category: typeof category === 'string' ? category : undefined,
       unit,
-      category,
-      currentStock: 0,
+      currentStock: typeof currentStock === 'number' ? currentStock : Number(currentStock ?? 0) || 0,
+      reorderLevel: typeof reorderLevel === 'number' ? reorderLevel : reorderLevel !== undefined ? Number(reorderLevel) : undefined,
     });
-    res.status(201).json(product);
-  } catch (err) {
-    next(err);
+
+    res.status(201).json({ data: product });
+  } catch (error) {
+    next(error);
   }
 }
 
-export async function listProducts(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
+export async function listProductsHandler(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const products = await Product.find({ businessId: req.businessId }).lean();
+    const products = await productRepository.listByBusinessId(req.businessId!);
     res.json({ data: products });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 }
 
-export async function recordMovement(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
+export async function recordMovementHandler(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { productId, type, quantity, date, note } = req.body as Record<string, unknown>;
-    if (!productId || !type || quantity === undefined) {
-      return next(new BadRequestError('productId, type, and quantity are required'));
+    if (typeof productId !== 'string') {
+      throw new BadRequestError('productId is required');
     }
-    const product = await Product.findOne({
-      _id: productId,
-      businessId: req.businessId,
-    });
+
+    const movementType = parseMovementType(type);
+    const parsedQuantity = parseQuantity(quantity);
+    const product = await productRepository.findById(productId, req.businessId!);
     if (!product) {
-      return next(new NotFoundError('Product not found'));
+      throw new NotFoundError('Product not found');
     }
-    const qty = Number(quantity);
-    const movement = await InventoryMovement.create({
-      businessId: req.businessId,
-      productId,
-      type,
-      quantity: qty,
-      date: date ? new Date(date as string) : new Date(),
-      note,
-    });
-    if (type === 'purchase') {
-      product.currentStock += qty;
-    } else if (type === 'sale') {
-      product.currentStock = Math.max(0, product.currentStock - qty);
+
+    let nextStock = product.currentStock;
+    if (movementType === 'sale') {
+      nextStock -= parsedQuantity;
+    } else if (movementType === 'purchase') {
+      nextStock += parsedQuantity;
     } else {
-      product.currentStock += qty;
+      nextStock += parsedQuantity;
     }
-    await product.save();
-    res.status(201).json(movement);
-  } catch (err) {
-    next(err);
+
+    if (nextStock < 0) {
+      throw new BadRequestError('movement would make stock negative');
+    }
+
+    const movement = await inventoryMovementRepository.create({
+      businessId: req.businessId!,
+      productId,
+      type: movementType,
+      quantity: parsedQuantity,
+      date: typeof date === 'string' ? date : new Date().toISOString(),
+      note: typeof note === 'string' ? note : undefined,
+    });
+
+    const updatedProduct: Product = {
+      ...product,
+      currentStock: nextStock,
+    };
+    await productRepository.update(updatedProduct);
+    await recordEvent(req.businessId!, 'inventory.movement', movement);
+
+    res.status(201).json({ data: movement });
+  } catch (error) {
+    next(error);
   }
 }
 
-export async function getRestockSuggestions(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
+export async function getRestockSuggestionsHandler(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const horizonDays = parseInt(String(req.query.horizonDays || '7'), 10);
-    const safetyFactor = parseFloat(String(req.query.safetyFactor || '1.5'));
-    const suggestions = await generateRestockSuggestions(req.businessId!, horizonDays, safetyFactor);
+    const horizonDays = Math.max(1, Number.parseInt(String(req.query.horizonDays ?? '7'), 10) || 7);
+    const suggestions = await generateRestockSuggestions(req.businessId!, horizonDays);
     res.json({ data: suggestions });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 }
