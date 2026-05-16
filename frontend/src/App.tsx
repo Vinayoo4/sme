@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { fetchNotifications } from './api/notificationsApi';
-import { getDemoUserId, setDemoUserId } from './api/client';
+import { getUserId, setUserId } from './api/client';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AppContext } from './context/AppContext';
@@ -23,31 +23,31 @@ function AppLayout() {
   );
 }
 
-function ProtectedRoute({ demoUserId }: { demoUserId: string }) {
-  return demoUserId ? <AppLayout /> : <Navigate to="/login" replace />;
+function ProtectedRoute({ userId }: { userId: string }) {
+  return userId ? <AppLayout /> : <Navigate to="/login" replace />;
 }
 
 function App() {
-  const [demoUserId, setSessionUserIdState] = useState(getDemoUserId());
+  const [userId, setUserIdState] = useState(getUserId());
   const [unseenNotifications, setUnseenNotifications] = useState(0);
 
-  const setSessionUserId = useCallback((value: string) => {
-    setDemoUserId(value);
-    setSessionUserIdState(value);
+  const setUserIdFn = useCallback((value: string) => {
+    setUserId(value);
+    setUserIdState(value);
   }, []);
 
   const refreshNotificationCount = useCallback(async () => {
-    if (!demoUserId) {
+    if (!userId) {
       setUnseenNotifications(0);
       return;
     }
     const notifications = await fetchNotifications();
     setUnseenNotifications(notifications.filter((notification) => !notification.seen).length);
-  }, [demoUserId]);
+  }, [userId]);
 
   const contextValue = useMemo(
-    () => ({ demoUserId, setSessionUserId, unseenNotifications, refreshNotificationCount }),
-    [demoUserId, setSessionUserId, unseenNotifications, refreshNotificationCount],
+    () => ({ userId, setUserId: setUserIdFn, unseenNotifications, refreshNotificationCount }),
+    [userId, setUserIdFn, unseenNotifications, refreshNotificationCount],
   );
 
   return (
@@ -55,7 +55,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedRoute demoUserId={demoUserId} />}>
+          <Route element={<ProtectedRoute userId={userId} />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/feedback" element={<FeedbackPage />} />
             <Route path="/inventory" element={<InventoryPage />} />

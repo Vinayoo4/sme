@@ -6,15 +6,15 @@ import { LoginPage } from '../pages/LoginPage'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('LoginPage', () => {
-  it('stores the demo user id through context on submit', async () => {
+  it('stores the user id through context on submit', async () => {
     const user = userEvent.setup()
-    const setSessionUserId = vi.fn()
+    const setUserId = vi.fn()
 
     render(
       <AppContext.Provider
         value={{
-          demoUserId: '',
-          setSessionUserId,
+          userId: '',
+          setUserId,
           unseenNotifications: 0,
           refreshNotificationCount: vi.fn().mockResolvedValue(undefined),
         }}
@@ -25,9 +25,9 @@ describe('LoginPage', () => {
       </AppContext.Provider>,
     )
 
-    await user.type(screen.getByPlaceholderText('Paste x-demo-user-id'), 'demo-user-123')
+    await user.type(screen.getByPlaceholderText('Enter your user ID'), 'user-123')
     await user.click(screen.getByRole('button', { name: 'Continue' }))
 
-    expect(setSessionUserId).toHaveBeenCalledWith('demo-user-123')
+    expect(setUserId).toHaveBeenCalledWith('user-123')
   })
 })

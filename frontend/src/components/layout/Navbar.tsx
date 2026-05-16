@@ -2,17 +2,17 @@ import { Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 
 export function Navbar() {
-  const { unseenNotifications, demoUserId } = useAppContext();
+  const { unseenNotifications, userId } = useAppContext();
 
   return (
     <header className="topbar">
       <div>
         <strong>SME Ops</strong>
-        <p className="muted">JSON-file NoSQL workspace</p>
+        <p className="muted">Operations Platform</p>
       </div>
       <nav className="topbar-actions">
         <Link to="/notifications">Notifications ({unseenNotifications})</Link>
-        <span className="session-chip">Demo user: {demoUserId || 'not set'}</span>
+        <span className="session-chip">User: {userId || 'not set'}</span>
       </nav>
     </header>
   );

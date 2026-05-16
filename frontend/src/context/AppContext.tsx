@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react';
 
 export interface AppContextValue {
-  demoUserId: string;
-  setSessionUserId: (value: string) => void;
+  userId: string;
+  setUserId: (value: string) => void;
   unseenNotifications: number;
   refreshNotificationCount: () => Promise<void>;
 }

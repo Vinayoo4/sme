@@ -1,66 +1,53 @@
 # SME Sync Platform — Roadmap
 
-## Goals
+## Architecture (Current)
 
-Build a lightweight, multi-tenant SaaS platform for small and medium businesses (SMEs) to manage two critical operations:
-1. **Customer Feedback** — Capture, store, and analyse customer feedback (voice/text).
-2. **Inventory Management** — Track stock, record movements (sales/purchases), and generate AI-powered restock suggestions.
+- **Backend**: Node.js + Express 5 + TypeScript, JSON-file document store, multi-tenant via `businessId` scoping.
+- **Frontend**: React 19 + Vite 6 + TypeScript, Axios, React Router 7.
+- **Auth**: Header-based auth (`x-demo-user-id`) resolved against local JSON user store.
+- **Monorepo**: Root `package.json` with scripts for backend and frontend.
 
-## Architecture
+## Phase 1 — Current State (Stabilized)
 
-- **Backend**: Node.js + Express + TypeScript, MongoDB (Mongoose), multi-tenant via `businessId` scoping.
-- **Frontend**: React + TypeScript (Vite), Axios, React Router.
-- **Auth**: Demo header-based auth (`x-demo-user-id`); designed for JWT replacement in v2.
-- **Monorepo**: Root `package.json` with workspace scripts for backend and frontend.
+- [x] Zero external database dependencies — all data in `backend/data/*.json`
+- [x] Express 5 with TypeScript 5.7, strict mode
+- [x] React 19 with Vite 6, Vitest 3
+- [x] JSON file store with atomic writes (temp-file + rename) and write-queue serialization
+- [x] Multi-tenant data scoping via `businessId`
+- [x] 8 collections: businesses, users, products, feedback, inventoryMovements, notifications, eventLogs, automationRules
+- [x] Restock forecasting engine (30-day moving average)
+- [x] Event-driven notification system (negative feedback alerts, low-stock alerts)
+- [x] Full data export endpoint
+- [x] Helmet security headers, CORS, rate limiting
+- [x] Backend tests: 2 passed | Frontend tests: 2 passed
 
-## Modules
+## Phase 2 — Optimization (Next 3 months)
 
-### Core Auth
-- Business (tenant) model with slug-based identification.
-- User model scoped to a business with roles: `owner`, `staff`, `admin`.
-- Auth middleware reads `x-demo-user-id` header and resolves the user + business context.
-- Tenant middleware enforces `businessId` presence on every protected route.
+- **Read/Write Caching**: Add in-memory LRU cache layer for read-heavy endpoints (feedback list, product list) to reduce file I/O.
+- **Concurrent Write Handling**: Replace the current write-queue pattern with proper async-lock per collection.
+- **Data Validation Layer**: Add Zod or similar runtime validation on all API inputs beyond current manual checks.
+- **Structured Logging Upgrade**: Route logs to a rotating file or stdout with log levels configurable via env.
+- **Frontend Error Boundaries**: Wrap each page in React error boundaries with retry logic.
+- **Pagination Cursors**: Move from offset-based to cursor-based pagination for feedback list to handle large datasets.
 
-### Feedback Module
-- **Model**: `Feedback` — stores rating, transcript, sentiment, serviceType, staffName, customerPhone per business.
-- **Service**: `feedbackService` — create and paginated-list operations.
-- **API**: `POST /api/feedback`, `GET /api/feedback?page=&limit=`.
+## Phase 3 — Scaling (6-12 months)
 
-### Inventory Module
-- **Models**: `Product` (name, SKU, unit, stock) and `InventoryMovement` (sale/purchase/adjustment).
-- **Service**: `forecastingService` — 30-day moving average to generate restock suggestions.
-- **API**:
-  - `POST /api/inventory/products` — create product
-  - `GET /api/inventory/products` — list products
-  - `POST /api/inventory/movements` — record stock movement (auto-updates `currentStock`)
-  - `GET /api/inventory/restock` — restock suggestions with configurable horizon and safety factor
+- **JSON to NoSQL Migration Path**: The repository pattern (`src/storage/repositories/*`) abstracts storage already. To migrate:
+  1. Implement a storage adapter interface matching the current repository API
+  2. Create a MongoDB (or SQLite) adapter implementing the same interface
+  3. Swap adapters via environment config — zero business logic changes
+  4. Data migration script: read from JSON files, batch-insert into the new store
+- **Authentication Upgrade**: Replace header-based auth with JWT (access + refresh tokens), bcrypt password hashing, and session management.
+- **Real-time Updates**: Add WebSocket support for live notification delivery (no polling).
+- **Multi-node Support**: Move JSON store to a shared volume or replace with a database for horizontal scaling.
+- **Containerization**: Dockerfile for each service + docker-compose for local dev.
 
-## API Endpoints
+## Future Considerations
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /api/health | No | Server health check |
-| GET | /api/feedback | Yes | List paginated feedback |
-| POST | /api/feedback | Yes | Submit new feedback |
-| GET | /api/inventory/products | Yes | List products |
-| POST | /api/inventory/products | Yes | Create a product |
-| POST | /api/inventory/movements | Yes | Record stock movement |
-| GET | /api/inventory/restock | Yes | Get restock suggestions |
+- **Voice Feedback**: Audio upload + Whisper API transcription
+- **Sentiment Analysis**: Auto-classify feedback using local NLP models
+- **Analytics Dashboard**: Charts for feedback trends, stock velocity, top-rated staff
+- **Offline PWA**: Service workers for shops with intermittent connectivity
+- **Multi-language UI**: i18n support for regional languages
+- **Role-based Access**: Granular permissions per module per role
 
-## Frontend Screens
-
-- **Login** — Enter demo user ID (from seed script) to authenticate.
-- **Dashboard** — Summary stats: total feedback count, products needing restock.
-- **Feedback** — Submit new feedback + paginated feedback table.
-- **Inventory** — Add products, record sales, view stock table, and restock suggestion table.
-
-## Future Plans
-
-- **v2**: Replace demo header auth with proper JWT authentication (bcrypt password hashing, refresh tokens).
-- **Voice Feedback**: Integrate audio upload + transcription (e.g., Whisper API) for voice-based feedback capture.
-- **Sentiment Analysis**: Auto-classify feedback sentiment using NLP (e.g., OpenAI or local model).
-- **SMS Notifications**: Alert owners when stock drops below reorder level.
-- **Analytics Dashboard**: Charts for feedback trends, top-rated staff, stock velocity.
-- **Role-based Access Control**: Granular permissions per module per role.
-- **Offline Support**: PWA with service workers for kirana shops with intermittent connectivity.
-- **Multi-language UI**: Hindi, Tamil, Telugu support for Indian SME market.

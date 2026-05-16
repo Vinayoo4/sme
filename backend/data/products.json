@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "businessId": "c05f9497-a7d4-4f60-a00c-08993a8aba1c",
+    "name": "Rice",
+    "sku": "RICE-1",
+    "unit": "kg",
+    "currentStock": 1,
+    "reorderLevel": 10,
+    "id": "6ba987f4-5999-4bc7-a065-c49f1ecb654e",
+    "createdAt": "2026-05-16T07:06:18.984Z",
+    "updatedAt": "2026-05-16T07:06:19.226Z"
+  }
+]

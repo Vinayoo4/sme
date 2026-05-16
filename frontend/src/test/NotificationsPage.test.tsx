@@ -50,8 +50,8 @@ describe('NotificationsPage', () => {
     render(
       <AppContext.Provider
         value={{
-          demoUserId: 'demo-user-123',
-          setSessionUserId: vi.fn(),
+          userId: 'user-123',
+          setUserId: vi.fn(),
           unseenNotifications: 1,
           refreshNotificationCount: vi.fn().mockResolvedValue(undefined),
         }}

@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "businessId": "c05f9497-a7d4-4f60-a00c-08993a8aba1c",
+    "productId": "6ba987f4-5999-4bc7-a065-c49f1ecb654e",
+    "type": "sale",
+    "quantity": 4,
+    "date": "2026-01-01T00:00:00.000Z",
+    "id": "0ed2537c-ebea-4c9f-bd86-af1fcfaf019e",
+    "createdAt": "2026-05-16T07:06:19.088Z",
+    "updatedAt": "2026-05-16T07:06:19.088Z"
+  }
+]
